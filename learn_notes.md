@@ -248,3 +248,150 @@ test^上标^~下标~
 ### 内容一
 
 首先要做的事情当然是安装了，在mac和linux上的安装比较相似，使用安装器直接安装就好了，mac上使用`brew install git`，linux上使用`sudo pacman -S git`，很快就可以安装好了
+
+### 内容N 配置SSH远程
+
+> 适用场景：本地 git push 到 GitHub 时不想每次输密码，且网络环境有代理（Clash/Surge 等）导致 22 端口不通的情况。
+---
+
+#### 第一步：生成 SSH 密钥
+
+在终端执行（把邮箱换成你自己的）：
+
+```bash
+ssh-keygen -t ed25519 -C "alesandrokola92@gmail.com"
+```
+
+后面连续三个提示，**全部直接回车**：
+
+``` text
+Enter file in which to save the key (/Users/tenet/.ssh/id_ed25519):   ← 回车（用默认路径）
+Enter passphrase ... (empty for no passphrase):                        ← 回车（留空，否则每次 push 还要输密码）
+Enter same passphrase again:                                           ← 回车
+```
+
+完成后会生成两个文件：
+
+| 文件 | 作用 | 保密性 |
+| --- | --- | --- |
+| `~/.ssh/id_ed25519` | **私钥** | ⚠️ 绝对不能泄露 |
+| `~/.ssh/id_ed25519.pub` | **公钥** | 可以公开，添加到 GitHub 用 |
+
+> 💡 推荐 ed25519 而不是老教程里的 rsa：更安全、更快、更短，是 GitHub 官方推荐的算法。
+---
+
+#### 第二步：把公钥添加到 GitHub
+
+**1. 复制公钥到剪贴板：**
+
+```bash
+pbcopy < ~/.ssh/id_ed25519.pub
+```
+
+**2. 在 GitHub 网页上操作：**
+
+1. 登录 GitHub → 右上角头像 → **Settings**
+2. 左侧栏 → **SSH and GPG keys**
+3. 点 **New SSH key**
+4. Title 随便填（如 "我的 Mac"）
+5. Key 框里粘贴（`⌘V`）刚才复制的内容
+6. 点 **Add SSH key**
+
+> ⚠️ 注意：公钥必须添加到**你要推送的仓库所属的那个账号**（本例中是 Richard-lwj 账号）。加错账号 push 时会报 `Permission denied (publickey)`。
+---
+
+#### 第三步：配置 SSH 走 443 端口（代理环境必需）
+
+如果你的网络有 Clash/Surge 等代理（表现为报错 `Connection closed by 198.18.x.x port 22`，198.18 开头是代理的 Fake-IP），22 端口走不通，需要让 SSH 改走 443 端口。**没有代理问题的同学可以跳过这一步。**
+**1. 编辑 SSH 配置文件：**
+
+```bash
+nano ~/.ssh/config
+```
+
+**2. 写入以下四行**（文件有内容就加在末尾）：
+
+``` bash
+Host github.com
+    Hostname ssh.github.com
+    Port 443
+    User git
+```
+
+含义：以后凡是连 `github.com`，都自动改走 `ssh.github.com` 的 443 端口。
+**3. 保存退出：**
+
+- `Ctrl + O` → 回车（保存）
+- `Ctrl + X`（退出）
+  
+---
+
+#### 第四步：验证连接
+
+```bash
+ssh -T git@github.com
+```
+
+- 首次连接会问 `Are you sure you want to continue connecting?` → 输入 `yes` 回车
+- 看到 **`Hi Richard-lwj! You've successfully authenticated...`** 即为成功 ✅
+
+---
+
+#### 第五步：把仓库远程地址从 HTTPS 改成 SSH
+
+**1. 查看当前远程地址：**
+
+```bash
+git remote -v
+```
+
+如果显示的是 `https://github.com/...` 开头，就需要改（这正是每次要密码的原因）。
+**2. 修改为 SSH 地址：**
+
+```bash
+git remote set-url github git@github.com:Richard-lwj/Notes.git
+```
+
+> ⚠️ 注意 `set-url` 后面第一个词是**你的远程仓库名**。本例中叫 `github`（不是常见的 `origin`），以 `git remote -v` 显示的为准。
+**3. 再次确认：**
+
+```bash
+git remote -v
+```
+
+显示为 `git@github.com:Richard-lwj/Notes.git` 即成功。
+
+---
+
+#### 第六步：测试推送
+
+```bash
+git push github main
+```
+
+（分支名按实际情况，可能是 `master`）
+不再提示输密码，直接推送成功，全部完成 🎉
+
+---
+
+#### 附：日常使用速查
+
+| 场景 | 命令/做法 |
+| --- | --- |
+| 新 clone 仓库 | 直接用 SSH 地址：`git clone git@github.com:Richard-lwj/仓库名.git` |
+| 已有 HTTPS 仓库 | `git remote set-url github git@github.com:用户名/仓库名.git` |
+| 检查连接是否正常 | `ssh -T git@github.com` |
+| 查看公钥 | `cat ~/.ssh/id_ed25519.pub` |
+| 更换电脑 | 备份整个 `~/.ssh/` 文件夹（重点备份私钥） |
+
+#### 附：常见报错排查
+
+| 报错 | 原因 | 解决 |
+| --- | --- | --- |
+| `Connection closed by 198.18.x.x port 22` | 代理干扰 22 端口 | 完成第三步的 443 配置 |
+| `Permission denied (publickey)` | 公钥没加对账号 / 没生成密钥 | 检查第二步，确认加到了仓库所属账号 |
+| 每次还问密码 | 远程地址还是 HTTPS | 完成第五步 |
+| 仍然提示输 passphrase | 生成密钥时设了密码短语 | 重新生成，passphrase 留空 |
+
+---
+这条流程你现在已经完整走通了，以后在任何新仓库上只需要做**第五步**（改远程地址）就够了，其余配置都是一次性的。
