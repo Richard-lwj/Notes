@@ -247,7 +247,7 @@ test^上标^~下标~
 
 ### 内容一
 
-首先要做的事情当然是安装了，在mac和linux上的安装比较相似，使用安装器直接安装就好了，mac上使用`brew install git`，linux上使用`sudo pacman -S git`，很快就可以安装好了
+首先要做的事情当然是安装了，在mac和linux上的安装比较相似，使用安装器直接安装就好了，mac上使用`brew install git`，linux上使用`sudo pacman -S git`.
 
 ### 内容N 配置SSH远程
 
